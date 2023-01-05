@@ -1,4 +1,44 @@
-@torch.enable_grad()
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torchvision import transforms
+from tqdm import tqdm
+from collections import OrderedDict
+import os
+
+from torchmeta.datasets import Omniglot, MiniImagenet
+from torchmeta.utils.data import BatchMetaDataLoader
+from torchmeta.transforms import Categorical, ClassSplitter
+
+from metalearners.maml import MAML
+from metalearners.imaml import iMAML
+from utils.utils import set_seed, set_gpu, check_dir, dict2tsv, BestTracker
+
+def train(args, model, dataloader):
+
+    loss_list = []
+    acc_list = []
+    grad_list = []
+
+    with tqdm(dataloader, total=args.num_train_batches) as pbar:
+        for batch_idx, batch in enumerate(pbar):
+
+            loss_log, acc_log, grad_log = model.outer_loop(batch, is_train=True)
+
+            loss_list.append(loss_log)
+            acc_list.append(acc_log)
+            grad_list.append(grad_log)
+            pbar.set_description('loss = {:.4f} || acc={:.4f} || grad={:.4f}'.format(np.mean(loss_list), np.mean(acc_list), np.mean(grad_list)))
+            if batch_idx >= args.num_train_batches:
+                break
+
+    loss = np.round(np.mean(loss_list), 4)
+    acc = np.round(np.mean(acc_list), 4)
+    grad = np.round(np.mean(grad_list), 4)
+
+    return loss, acc, grad
+
+    @torch.enable_grad()
     def inner_loop(self, fmodel, diffopt, train_input, train_target):
         
         train_logit = fmodel(train_input)
